@@ -16,7 +16,7 @@
 
     // Configuration
     const CACHE_KEY = 'lm_assignments_cache';
-    const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+    const CACHE_DURATION = 1 * 60 * 1000; // 1 minute for testing (change to 24 * 60 * 60 * 1000 for production)
     const LAST_FETCH_KEY = 'lm_last_fetch_time';
     const PROGRESSIVE_LOADING = true; // Enable progressive loading for better UX
 
@@ -381,27 +381,40 @@
     async function aggregateAssignments(progressCallback) {
         const assignments = await discoverAssignmentsFromCalendar(progressCallback);
 
-        // Fetch submission status for each assignment
-        for (const assignment of assignments) {
-            const statusInfo = await fetchSubmissionStatus(assignment.url);
+        // Fetch submission status for each assignment IN PARALLEL - MAJOR PERFORMANCE BOOST!
+        console.log(`[LM Tracker] Fetching status for ${assignments.length} assignments in parallel...`);
+        const statusStartTime = performance.now();
 
-            // Save original course info
-            const originalCourseName = assignment.courseName;
-            const originalCourseId = assignment.courseId;
+        const statusPromises = assignments.map(assignment =>
+            fetchSubmissionStatus(assignment.url)
+                .then(statusInfo => {
+                    // Save original course info
+                    const originalCourseName = assignment.courseName;
+                    const originalCourseId = assignment.courseId;
 
-            // Merge status info
-            Object.assign(assignment, statusInfo);
+                    // Merge status info
+                    Object.assign(assignment, statusInfo);
 
-            // Restore course info if statusInfo didn't provide it or provided null
-            if (!statusInfo.courseName || statusInfo.courseName === null) {
-                assignment.courseName = originalCourseName;
-            }
-            if (!statusInfo.courseId || statusInfo.courseId === null) {
-                assignment.courseId = originalCourseId;
-            }
+                    // Restore course info if statusInfo didn't provide it or provided null
+                    if (!statusInfo.courseName || statusInfo.courseName === null) {
+                        assignment.courseName = originalCourseName;
+                    }
+                    if (!statusInfo.courseId || statusInfo.courseId === null) {
+                        assignment.courseId = originalCourseId;
+                    }
 
-            console.log(`[LM Tracker] Assignment: ${assignment.name}, Course: ${assignment.courseName} (ID: ${assignment.courseId})`);
-        }
+                    console.log(`[LM Tracker] ✓ ${assignment.name} - ${assignment.courseName}`);
+                    return assignment;
+                })
+                .catch(error => {
+                    console.error(`[LM Tracker] Error fetching status for ${assignment.name}:`, error);
+                    return assignment;
+                })
+        );
+
+        await Promise.all(statusPromises);
+        const statusEndTime = performance.now();
+        console.log(`[LM Tracker] ⚡ Status fetching completed in ${(statusEndTime - statusStartTime).toFixed(0)}ms`);
 
         // Group by course
         const courseMap = new Map();
