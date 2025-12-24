@@ -935,19 +935,29 @@
         GM_setValue(LAST_FETCH_KEY, fetchTime);
 
         if (PROGRESSIVE_LOADING) {
-            // Progressive loading: show upcoming first, then update with historical
+            // TRUE Progressive loading: render UI as data arrives!
             console.log('[LM Tracker] 🚀 Progressive loading enabled');
-            let upcomingShown = false;
 
-            const data = await aggregateAssignments((progress) => {
-                if (progress.phase === 'upcoming' && !upcomingShown) {
-                    console.log('[LM Tracker] ⚡ Upcoming assignments ready - rendering immediately!');
-                    upcomingShown = true;
-                    // Note: We don't render here because we need to aggregate first
-                    // But this callback confirms upcoming data is fetched
+            let upcomingAssignments = [];
+            let allAssignments = [];
+
+            // Start fetching with progress callback
+            const dataPromise = aggregateAssignments(async (progress) => {
+                if (progress.phase === 'upcoming') {
+                    console.log('[LM Tracker] ⚡ Upcoming assignments ready - rendering NOW!');
+                    upcomingAssignments = progress.assignments;
+
+                    // Render upcoming assignments immediately (without status details yet)
+                    const quickData = await quickAggregate(upcomingAssignments);
+                    createUI(quickData);
                 }
             });
 
+            // Wait for all data
+            const data = await dataPromise;
+
+            // Update with complete data (including historical)
+            console.log('[LM Tracker] 📚 Historical data ready - updating UI...');
             GM_setValue(CACHE_KEY, JSON.stringify({ data, timestamp: fetchTime }));
             createUI(data);
             console.log('[LM Tracker] ✅ All data loaded and rendered');
@@ -957,6 +967,37 @@
             GM_setValue(CACHE_KEY, JSON.stringify({ data, timestamp: fetchTime }));
             createUI(data);
         }
+    }
+
+    // Helper: Quick aggregate for progressive display (without fetching status)
+    function quickAggregate(assignments) {
+        const courseMap = new Map();
+        assignments.forEach(assignment => {
+            if (!courseMap.has(assignment.courseId)) {
+                courseMap.set(assignment.courseId, {
+                    courseName: assignment.courseName,
+                    courseId: assignment.courseId,
+                    assignments: []
+                });
+            }
+            courseMap.get(assignment.courseId).assignments.push({
+                ...assignment,
+                status: 'Loading...',
+                opened: assignment.opened || 'N/A',
+                due: assignment.dueText || 'N/A'
+            });
+        });
+
+        return Array.from(courseMap.values()).map(course => ({
+            courseName: course.courseName,
+            courseUrl: `https://core.xjtlu.edu.cn/course/view.php?id=${course.courseId}`,
+            assignmentCount: course.assignments.length,
+            assignments: course.assignments.sort((a, b) => {
+                if (!a.dueDate) return 1;
+                if (!b.dueDate) return -1;
+                return a.dueDate - b.dueDate;
+            })
+        }));
     }
 
     // Wait for page to load
