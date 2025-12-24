@@ -381,38 +381,46 @@
     async function aggregateAssignments(progressCallback) {
         const assignments = await discoverAssignmentsFromCalendar(progressCallback);
 
-        // Fetch submission status for each assignment IN PARALLEL - MAJOR PERFORMANCE BOOST!
-        console.log(`[LM Tracker] Fetching status for ${assignments.length} assignments in parallel...`);
+        // Fetch submission status with CONTROLLED PARALLELISM (avoid rate limiting)
+        console.log(`[LM Tracker] Fetching status for ${assignments.length} assignments in batches...`);
         const statusStartTime = performance.now();
 
-        const statusPromises = assignments.map(assignment =>
-            fetchSubmissionStatus(assignment.url)
-                .then(statusInfo => {
-                    // Save original course info
-                    const originalCourseName = assignment.courseName;
-                    const originalCourseId = assignment.courseId;
+        const BATCH_SIZE = 5; // Process 5 assignments at a time to avoid overwhelming the server
 
-                    // Merge status info
-                    Object.assign(assignment, statusInfo);
+        for (let i = 0; i < assignments.length; i += BATCH_SIZE) {
+            const batch = assignments.slice(i, i + BATCH_SIZE);
+            console.log(`[LM Tracker] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(assignments.length / BATCH_SIZE)}...`);
 
-                    // Restore course info if statusInfo didn't provide it or provided null
-                    if (!statusInfo.courseName || statusInfo.courseName === null) {
-                        assignment.courseName = originalCourseName;
-                    }
-                    if (!statusInfo.courseId || statusInfo.courseId === null) {
-                        assignment.courseId = originalCourseId;
-                    }
+            const batchPromises = batch.map(assignment =>
+                fetchSubmissionStatus(assignment.url)
+                    .then(statusInfo => {
+                        // Save original course info
+                        const originalCourseName = assignment.courseName;
+                        const originalCourseId = assignment.courseId;
 
-                    console.log(`[LM Tracker] ✓ ${assignment.name} - ${assignment.courseName}`);
-                    return assignment;
-                })
-                .catch(error => {
-                    console.error(`[LM Tracker] Error fetching status for ${assignment.name}:`, error);
-                    return assignment;
-                })
-        );
+                        // Merge status info
+                        Object.assign(assignment, statusInfo);
 
-        await Promise.all(statusPromises);
+                        // Restore course info if statusInfo didn't provide it or provided null
+                        if (!statusInfo.courseName || statusInfo.courseName === null) {
+                            assignment.courseName = originalCourseName;
+                        }
+                        if (!statusInfo.courseId || statusInfo.courseId === null) {
+                            assignment.courseId = originalCourseId;
+                        }
+
+                        console.log(`[LM Tracker] ✓ ${assignment.name} - ${assignment.courseName}`);
+                        return assignment;
+                    })
+                    .catch(error => {
+                        console.error(`[LM Tracker] Error fetching status for ${assignment.name}:`, error);
+                        return assignment;
+                    })
+            );
+
+            await Promise.all(batchPromises);
+        }
+
         const statusEndTime = performance.now();
         console.log(`[LM Tracker] ⚡ Status fetching completed in ${(statusEndTime - statusStartTime).toFixed(0)}ms`);
 
