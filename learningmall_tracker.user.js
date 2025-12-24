@@ -16,7 +16,7 @@
 
     // Configuration
     const CACHE_KEY = 'lm_assignments_cache';
-    const CACHE_DURATION = 1 * 60 * 1000; // 1 minute for testing (change to 24 * 60 * 60 * 1000 for production)
+    const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
     const LAST_FETCH_KEY = 'lm_last_fetch_time';
     const PROGRESSIVE_LOADING = true; // Enable progressive loading for better UX
 
