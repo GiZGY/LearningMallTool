@@ -983,7 +983,7 @@
             }
             courseMap.get(assignment.courseId).assignments.push({
                 ...assignment,
-                status: 'Loading...',
+                status: 'Loading... (Est. 15-30s)',
                 opened: assignment.opened || 'N/A',
                 due: assignment.dueText || 'N/A'
             });
