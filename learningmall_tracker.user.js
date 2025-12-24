@@ -855,9 +855,18 @@
         });
 
         document.getElementById('lm-tracker-refresh').addEventListener('click', async () => {
-            content.innerHTML = '<div class="lm-loading">Loading assignments...</div>';
+            // Show loading message with time estimate
+            content.innerHTML = '<div class="lm-loading">Loading assignments...<br><small style="color: #999;">Estimated time: 15-30 seconds</small></div>';
             GM_setValue(CACHE_KEY, null);
-            const newData = await aggregateAssignments();
+
+            // Use progressive loading
+            const newData = await aggregateAssignments(async (progress) => {
+                if (progress.phase === 'upcoming') {
+                    const quickData = await quickAggregate(progress.assignments);
+                    createUI(quickData);
+                }
+            });
+
             const now = Date.now();
             GM_setValue(CACHE_KEY, JSON.stringify({ data: newData, timestamp: now }));
             GM_setValue(LAST_FETCH_KEY, now);
