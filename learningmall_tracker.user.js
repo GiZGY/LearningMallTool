@@ -383,6 +383,7 @@
 
         // Fetch submission status with CONTROLLED PARALLELISM (avoid rate limiting)
         console.log(`[LM Tracker] Fetching status for ${assignments.length} assignments in batches...`);
+        console.log('[LM Tracker] ⏳ Estimated time: 15-30 seconds (depending on number of assignments)');
         const statusStartTime = performance.now();
 
         const BATCH_SIZE = 5; // Process 5 assignments at a time to avoid overwhelming the server
