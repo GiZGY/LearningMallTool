@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         XJTLU LearningMall Assignment Tracker
 // @namespace    http://tampermonkey.net/
-// @version      2.1
+// @version      2.2
 // @description  Display all course assignments with deadlines and submission status on the LearningMall Dashboard
 // @author       You
 // @match        https://core.xjtlu.edu.cn/*
@@ -18,6 +18,7 @@
     const CACHE_KEY = 'lm_assignments_cache';
     const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
     const LAST_FETCH_KEY = 'lm_last_fetch_time';
+    const PROGRESSIVE_LOADING = true; // Enable progressive loading for better UX
 
     // Utility: Parse HTML string to DOM
     function parseHTML(html) {
